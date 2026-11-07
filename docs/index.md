@@ -38,13 +38,14 @@ features:
 
 <div style="max-width: 720px; margin: 0 auto">
 
-![A Claude reply in the Codex App with an inline visualization: tiles for total signups, the peak month and quarter-over-quarter growth, a bar chart of six months of signups with the peak month highlighted and a dashed monthly average, a chart of month-over-month change, and a short summary of the trend](/images/inline-visualization.png)
+![Animation of a Claude reply's inline visualization loading: tiles for total signups, the peak month and quarter-over-quarter growth count up, six months of signup bars grow, June turns orange as the peak month and a dashed monthly average is drawn, a chart of month-over-month change fills in, then the pointer rests on June and a tooltip shows 204 signups and +27.5% month over month. Made-up signup data](/images/inline-visualization.webp)
 
 </div>
 
 Claude, asked in a Codex App chat to chart six months of signups, answers with
 an inline visualization that the App renders inside the reply, as it does for
-Codex. The request was in Chinese, so are the labels. See
+Codex. The request was in Chinese, so are the labels. The animation re-creates
+that chart with made-up signup numbers. See
 **[Inline visualizations](/guide/gui#inline-visualizations)**.
 
 ## What it does
