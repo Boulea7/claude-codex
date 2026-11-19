@@ -363,10 +363,13 @@ async function daemonIsRunning(pid: number, socketPath: string, pidFile: string)
   } catch {
     return false
   }
+  // A pid file dated in the future (clock stepped back, network file system)
+  // gets one grace window from now, not until its date comes round.
+  const deadline = Math.min(writtenAt, Date.now()) + DAEMON_STARTUP_GRACE_MS
   for (;;) {
     if (!processIsAlive(pid)) return false
     if (await listening(socketPath)) return true
-    if (Date.now() - writtenAt >= DAEMON_STARTUP_GRACE_MS) return false
+    if (Date.now() >= deadline) return false
     await sleep(200)
   }
 }

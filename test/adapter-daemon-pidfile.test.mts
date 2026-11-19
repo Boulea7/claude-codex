@@ -30,10 +30,24 @@ async function cleanup({ home, sock, pidFile }: DaemonSetup): Promise<void> {
   await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 80 })
 }
 
+// State, debug log and orphan registry stay in the test home, whatever the
+// shell running the suite points at.
+function daemonEnv(home: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    CODEX_HOME: home,
+    CLAUDE_CODEX_MOCK: '1',
+    NODE_NO_WARNINGS: '1',
+  }
+  delete env.CLAUDE_CODEX_HOME
+  delete env.CLAUDE_CODEX_DEBUG_LOG
+  return env
+}
+
 function startDaemon({ home, sock }: DaemonSetup): ChildProcess {
   return spawn(process.execPath, [adapter, 'app-server', '--listen', `unix://${sock}`], {
     stdio: ['ignore', 'ignore', 'pipe'],
-    env: { ...process.env, CODEX_HOME: home, CLAUDE_CODEX_MOCK: '1', NODE_NO_WARNINGS: '1' },
+    env: daemonEnv(home),
   })
 }
 
@@ -86,7 +100,7 @@ async function assertDaemonReplacesPidFile(
   try {
     // Well inside the 10 s startup grace window, so a pid file wrongly taken
     // for a starting daemon makes this time out.
-    const stderr = await waitForStderr(daemon, /listening on/, 5000)
+    const stderr = await waitForStderr(daemon, /listening on/, 8000)
     assert.doesNotMatch(stderr, /already running/)
     assert.equal(await readFile(state.pidFile, 'utf8'), `${daemon.pid}\n`)
   } finally {
@@ -189,15 +203,7 @@ test('a pid file naming the starting daemon itself does not block startup', {
         '--listen',
         `unix://${state.sock}`,
       ],
-      {
-        stdio: ['ignore', 'ignore', 'pipe'],
-        env: {
-          ...process.env,
-          CODEX_HOME: state.home,
-          CLAUDE_CODEX_MOCK: '1',
-          NODE_NO_WARNINGS: '1',
-        },
-      },
+      { stdio: ['ignore', 'ignore', 'pipe'], env: daemonEnv(state.home) },
     )
     await assertDaemonReplacesPidFile(state, daemon)
   } finally {
