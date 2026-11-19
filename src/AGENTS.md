@@ -22,6 +22,8 @@ Protocol and server:
   `daemon version`, config requirements) answered before any state is opened.
 - `thread-history.mts` — paged history views: `thread/turns/list`,
   `thread/items/list`, `thread/timeline/list`, searches and fork turns.
+- `fs-watch.mts` — `fs/watch` the Codex way: non-recursive, debounced
+  `fs/changed` under the requested path, following a file across renames.
 - `types.mts` — shared protocol/runtime types.
 - `app-compat.mts` — App rules: Codex App behavior the adapter relies on beyond
   the protocol schema. Code that depends on one is tagged `// App rule: <id>`;
@@ -32,6 +34,9 @@ Transport and process lifecycle:
 - `transports.mts` — stdio / WebSocket / Unix-socket daemon / `proxy`.
 - `ws-auth.mts` — Origin check and capability-token auth for the TCP
   `--listen ws://` listener.
+- `isolated-launch.mts` — the `claude-codex-isolated` bin: one foreground
+  adapter on `ws://127.0.0.1` with its own state folder and token auth, to run
+  beside native Codex or Orca.
 - `process-owner.mts` — names a server by pid + start time so a later server
   fails only the turns of servers that are gone.
 - `cli-orphans.mts` — records the Claude CLI children per adapter and reaps
