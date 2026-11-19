@@ -14,7 +14,7 @@ hero:
       link: /guide/configuration
     - theme: alt
       text: View on GitHub
-      link: https://github.com/fuergaosi233/claude-codex
+      link: https://github.com/nwverse/claude-codex
 
 features:
   - icon: 🔌
@@ -38,16 +38,24 @@ features:
 
 <div style="max-width: 720px; margin: 0 auto">
 
-![Animation of the inline visualization from a Claude reply: tiles for total signups, the peak month and quarter-over-quarter growth, a bar chart of six months of signups with June highlighted as the peak and a dashed monthly average, a chart of month-over-month change, and a short summary. The pointer rests on June: a tooltip shows 204 signups and +27.5% month over month, and June stands out in both charts. Then it moves to May, 160 signups and -6.4%. Recreated with the same synthetic data](/images/inline-visualization.webp)
+![A Claude reply in the Codex App with an inline visualization: tiles for total signups, the peak month and quarter-over-quarter growth, a bar chart of six months of signups with the peak month highlighted and a dashed monthly average, a chart of month-over-month change, and a short summary of the trend](/images/inline-visualization.png)
 
 </div>
 
 Claude, asked in a Codex App chat to chart six months of signups, answers with
 an inline visualization that the App renders inside the reply, as it does for
-Codex. The request was in Chinese, so are the labels. The animation recreates
-that chart as HTML with the same synthetic data; pointing at a month shows its
-numbers. See
+Codex. The request was in Chinese, so are the labels. See
 **[Inline visualizations](/guide/gui#inline-visualizations)**.
+
+<details>
+<summary>Show the animated recreation</summary>
+
+![A pointer highlights June and May in the signup charts](/images/inline-visualization.webp)
+
+In this recreation, the June tooltip shows 204 signups (+27.5%) and the May
+tooltip shows 160 (−6.4%). It uses the same synthetic data as the screenshot.
+
+</details>
 
 ## What it does
 

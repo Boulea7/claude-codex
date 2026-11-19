@@ -407,12 +407,21 @@ chart, a diagram or a small interactive explainer that the Codex App renders
 inside the conversation, the same way it does for Codex. Ask for one ("show
 this as a chart", "draw the flow") or let Claude offer one where it helps.
 
-![Animation of the inline visualization from a Claude reply: tiles for total signups, the peak month and quarter-over-quarter growth, a bar chart of six months of signups with June highlighted as the peak and a dashed monthly average, a chart of month-over-month change, and a short summary. The pointer rests on June: a tooltip shows 204 signups and +27.5% month over month, and June stands out in both charts. Then it moves to May, 160 signups and -6.4%. Recreated with the same synthetic data](/images/inline-visualization.webp)
+![A Claude reply in the Codex App with an inline visualization: tiles for total signups, the peak month and quarter-over-quarter growth, a bar chart of six months of signups with the peak month highlighted and a dashed monthly average, a chart of month-over-month change, and a short summary of the trend](/images/inline-visualization.png)
 
 *Asked for six months of signups as a bar chart, with the highest month
 highlighted and the trend summed up below. The request was in Chinese, so are
-the labels. The animation recreates that chart as HTML with the same synthetic
-data; pointing at a month shows its numbers.*
+the labels.*
+
+<details>
+<summary>Show the animated recreation</summary>
+
+![A pointer highlights June and May in the signup charts](/images/inline-visualization.webp)
+
+In this recreation, the June tooltip shows 204 signups (+27.5%) and the May
+tooltip shows 160 (−6.4%). It uses the same synthetic data as the screenshot.
+
+</details>
 
 **How Claude finds the skill.** Each time it starts, the App installs its
 bundled plugins with `plugin/install`. The adapter remembers the `visualize`
