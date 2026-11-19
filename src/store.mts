@@ -294,7 +294,12 @@ export class SessionStore {
     this.sanitizeLegacyEnumColumns()
   }
 
+  // Read first: INSERT OR IGNORE takes the write lock even when it inserts
+  // nothing, and every adapter process opening the shared store runs this.
   private ensurePinnedSection(): void {
+    if (this.db.prepare('SELECT 1 FROM thread_sections WHERE id = ?').get(PINNED_SECTION_ID)) {
+      return
+    }
     const now = nowSeconds()
     this.db
       .prepare(
@@ -353,8 +358,8 @@ export class SessionStore {
   // toast when reopening a page. Repair the rows in place on startup so a
   // downgrade-then-upgrade cycle doesn't leave permanent landmines. The check
   // runs on every open for that reason; it is a single read-only scan, and
-  // octet_length tests the instruction columns for '' without reading their
-  // (often large) text.
+  // octet_length (SQLite 3.43+, bundled with Node 24) tests the instruction
+  // columns for '' without reading their (often large) text.
   private sanitizeLegacyEnumColumns(): void {
     const invalidThreadSource = `thread_source IS NOT NULL
       AND thread_source NOT IN ('user', 'subagent', 'memory_consolidation')`
