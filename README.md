@@ -20,6 +20,16 @@ real Codex runtime, so agent turns run on Claude Code.
 answers with an <a href="#inline-visualizations">inline visualization</a> that the
 App renders inside the reply. The request was in Chinese, so are the labels.</sub></p>
 
+<details>
+<summary>Show the animated recreation</summary>
+
+![A pointer highlights June and May in the signup charts](docs/public/images/inline-visualization.webp)
+
+In this recreation, the June tooltip shows 204 signups (+27.5%) and the May
+tooltip shows 160 (−6.4%). It uses the same synthetic data as the screenshot.
+
+</details>
+
 📖 **Documentation: <https://nwverse.github.io/claude-codex/>**
 
 ## Quick start
