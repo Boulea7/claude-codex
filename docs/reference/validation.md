@@ -10,7 +10,7 @@ npm run probe:codex-cli-remote        # probes the local codex --remote CLI beha
 npm run probe:capabilities            # mock stdio app-server: compat version + core requests
 npm run acceptance:ssh-runtime-matrix -- <ssh-host> <cwd-a> <cwd-b>  # runtime switch matrix on a host
 npm run check:app-upgrade -- --app <Codex.app>  # new Codex App build vs the verified baseline
-CODEX_REAL="$(command -v codex)" npm run check:rust-protocol-fixtures  # Rust fixtures vs real codex schema
+npm run check:rust-protocol-fixtures  # Rust fixtures vs real codex schema (CODEX_REAL optional)
 ```
 
 CI runs `npm run check`, `npm run typecheck`, `npm test`,
@@ -48,7 +48,8 @@ CI runs `npm run check`, `npm run typecheck`, `npm test`,
 
 - **`acceptance:ssh-runtime-matrix`** copies itself with `scp` to `/tmp` on
   `<ssh-host>` and runs there after sourcing `~/.claude-codex/runtime.env`,
-  which must set `CODEX_REAL` and `CLAUDE_CODEX_ADAPTER`. For every `from->to` pair of runtime modes (default
+  which must set `CODEX_REAL` and `CLAUDE_CODEX_ADAPTER`. For every `from->to`
+  pair of runtime modes (default
   `codex`, `agent-sdk-sidecar`, `agent-http`, `agentapi`, `claude-p`; override
   with comma-separated `MODE_MATRIX_MODES`) it switches modes with
   `claude-codex-mode set`, writes a token file into `<cwd-a>` and `<cwd-b>`, and
@@ -58,6 +59,11 @@ CI runs `npm run check`, `npm run typecheck`, `npm test`,
   `MODE_MATRIX_RESTORE_ENV=0`. Results are JSON lines on stdout ending with a
   `matrix-summary` record; the exit code is non-zero if any cell failed. It
   needs working credentials for every selected mode on the host.
+  `<cwd-a>` and `<cwd-b>` must already exist on the host; use scratch
+  directories, because the turns run with approvals off and full sandbox access
+  and the script accepts every approval request. It changes the host's active
+  runtime mode while it runs (the restore is skipped if it is interrupted), so
+  do not run it against a host that is serving a live Codex App session.
 
 - **`check:app-upgrade`** checks a new Codex desktop App build against what the
   adapter assumes about it before the build is marked verified. See
@@ -67,9 +73,11 @@ CI runs `npm run check`, `npm run typecheck`, `npm test`,
 - **`check:rust-protocol-fixtures`** generates the app-server schema with the
   real Codex CLI and checks that the methods the Rust protocol fixtures under
   `crates/claude-codex-protocol/fixtures/` use still exist and that the Turn
-  fixtures carry exactly the fields of the generated `Turn`. Set `CODEX_REAL`
-  to the real `codex` binary; the check refuses the repository shim and any
-  `codex` on `PATH` that looks like an adapter shim.
+  fixtures carry exactly the fields of the generated `Turn`. It uses
+  `CODEX_REAL` if set, otherwise a `codex` on `PATH` that reports itself as
+  `codex-cli` and does not look like an adapter shim; it always refuses the
+  repository shim. On a host where the adapter shim is installed as `codex`,
+  set `CODEX_REAL` to the real binary rather than to `$(command -v codex)`.
 
 Acceptance and probe transcripts from `acceptance:local-remote`,
 `acceptance:gui-ssh-localhost`, and `probe:codex-cli-remote` are written under
