@@ -637,7 +637,8 @@ export class CodexClaudeAppServer {
   private subscribersByThread = new Map<string, Map<string, RpcPeer>>()
   private peerFeatures = new WeakMap<RpcPeer, PeerFeatures>()
   private activeTurnByThread = new Map<string, string>()
-  // Turns whose runtime run has not returned yet. A running turn outside this
+  private readonly startingTurnByThread = new Map<string, Promise<void>>()
+  // Turns whose runtime run is scheduled or has not returned yet. A turn outside this
   // set has nothing left that would ever end it.
   private runtimeRuns = new Set<string>()
   private subagentStateByTurn = new Map<string, ActiveSubagentState>()
@@ -3514,11 +3515,9 @@ export class CodexClaudeAppServer {
     const thread = this.store.getThread(threadId)
     if (!thread) throw unknownThread(threadId)
     const runningTurnId = this.activeTurnByThread.get(threadId)
-    if (runningTurnId) {
-      const activeTurn = this.store.getTurn(runningTurnId)
-      if (activeTurn && activeTurn.status === 'inProgress') {
-        throw invalidRequest(`cannot start review while a turn is running on thread ${threadId}`)
-      }
+    const activeTurn = runningTurnId ? this.store.getTurn(runningTurnId) : null
+    if (this.startingTurnByThread.has(threadId) || activeTurn?.status === 'inProgress') {
+      throw invalidRequest(`cannot start review while a turn is running on thread ${threadId}`)
     }
     this.checkModelProfileBinding(thread)
     this.subscribe(threadId, peer)
@@ -3599,11 +3598,9 @@ export class CodexClaudeAppServer {
     const thread = this.store.getThread(threadId)
     if (!thread) throw unknownThread(threadId)
     const runningTurnId = this.activeTurnByThread.get(threadId)
-    if (runningTurnId) {
-      const activeTurn = this.store.getTurn(runningTurnId)
-      if (activeTurn && activeTurn.status === 'inProgress') {
-        throw invalidRequest(`cannot compact thread ${threadId} while a turn is running`)
-      }
+    const activeTurn = runningTurnId ? this.store.getTurn(runningTurnId) : null
+    if (this.startingTurnByThread.has(threadId) || activeTurn?.status === 'inProgress') {
+      throw invalidRequest(`cannot compact thread ${threadId} while a turn is running`)
     }
     this.checkModelProfileBinding(thread)
     this.subscribe(threadId, peer)
@@ -3767,7 +3764,7 @@ export class CodexClaudeAppServer {
         // An interrupt already ended the turn and told the client.
         const completed = this.endTurn(turn, 'completed', null)
         if (completed) {
-          this.clearActiveTurn(threadId)
+          this.clearActiveTurn(threadId, turnId)
           this.setThreadStatus(peer, threadId, { type: 'idle' })
           this.notify(peer, {
             method: 'turn/completed',
@@ -3987,6 +3984,26 @@ export class CodexClaudeAppServer {
 
   private async turnStart(peer: RpcPeer, params: Record<string, unknown>): Promise<unknown> {
     const threadId = stringOr(params.threadId, '')
+    while (this.startingTurnByThread.has(threadId)) {
+      await this.startingTurnByThread.get(threadId)
+    }
+    let releaseStarting: () => void = () => {}
+    const startingPromise = new Promise<void>((resolve) => {
+      releaseStarting = resolve
+    })
+    this.startingTurnByThread.set(threadId, startingPromise)
+    try {
+      return await this.startClaimedTurn(peer, params)
+    } finally {
+      if (this.startingTurnByThread.get(threadId) === startingPromise) {
+        this.startingTurnByThread.delete(threadId)
+      }
+      releaseStarting()
+    }
+  }
+
+  private async startClaimedTurn(peer: RpcPeer, params: Record<string, unknown>): Promise<unknown> {
+    const threadId = stringOr(params.threadId, '')
     const thread = this.store.getThread(threadId)
     if (!thread) throw unknownThread(threadId)
     this.checkModelProfileBinding(thread)
@@ -4024,8 +4041,9 @@ export class CodexClaudeAppServer {
     // A turn/start can race a turn the adapter has just opened itself (for a
     // background agent's or workflow's report); a second turn would orphan
     // it, and it would never complete.
-    if (resumed) {
-      // Pressed while a turn runs: that turn is already carrying on.
+    if (resumed || hiddenPrompt != null) {
+      // Pressed while a turn runs, or a goal continuation that waited on a
+      // turn start: that turn is already carrying on.
       const runningTurnId = this.activeTurnByThread.get(threadId)
       const running = runningTurnId ? this.store.getTurn(runningTurnId) : null
       if (running?.status === 'inProgress') return { turn: this.toLifecycleTurn(running) }
@@ -4151,7 +4169,11 @@ export class CodexClaudeAppServer {
     this.setThreadStatus(peer, threadId, { type: 'active', activeFlags: [] })
     const publicTurn = this.toLifecycleTurn(turn)
 
+    // Steering may arrive before the scheduled runtime starts. It must wait,
+    // not mistake this turn for a run that already returned.
+    this.runtimeRuns.add(turnId)
     setImmediate(() => {
+      this.runtimeRuns.delete(turnId)
       // stop() has already settled this turn; starting it now would launch
       // Claude after the runtime stopped.
       if (this.stopped) return
@@ -4278,7 +4300,7 @@ export class CodexClaudeAppServer {
       durationMs: completed.durationMs,
       command: 'workflows.list',
     })
-    this.clearActiveTurn(thread.id)
+    this.clearActiveTurn(thread.id, turn.id)
     this.setThreadStatus(peer, thread.id, { type: 'idle' })
     this.notify(peer, {
       method: 'turn/completed',
@@ -6372,7 +6394,7 @@ export class CodexClaudeAppServer {
       completed.numTurns = collectedMetrics.numTurns
       completed.costUsd = collectedMetrics.costUsd
     }
-    this.clearActiveTurn(thread.id)
+    this.clearActiveTurn(thread.id, turn.id)
     this.setThreadStatus(peer, thread.id, { type: 'idle' })
     // Codex runs the config's notify program for its own threads' turns.
     if (params.outputSchema == null && thread.runtimeBackend !== 'codex' && !thread.ephemeral)
@@ -8145,7 +8167,7 @@ export class CodexClaudeAppServer {
       }
     }
     this.pendingAutonomousTurns.delete(threadId)
-    this.clearActiveTurn(threadId)
+    this.clearActiveTurn(threadId, turnId)
     this.setThreadStatus(peer, threadId, { type: 'idle' })
   }
 
@@ -8240,7 +8262,7 @@ export class CodexClaudeAppServer {
     debugLog('turn.lost', { threadId, turnId })
     const turn = this.store.getTurn(turnId)
     if (!turn) {
-      this.clearActiveTurn(threadId)
+      this.clearActiveTurn(threadId, turnId)
       return
     }
     const error = new Error('Claude stopped working on this turn before it finished.')
@@ -9935,6 +9957,7 @@ export class CodexClaudeAppServer {
     threadId: string,
     status: ThreadRecord['status'],
   ): void {
+    if (status.type === 'idle' && this.activeTurnByThread.has(threadId)) return
     // The client's view comes first: a status it never hears about leaves the
     // thread spinning. A stored status the write missed is repaired at startup.
     try {
@@ -10092,8 +10115,9 @@ export class CodexClaudeAppServer {
     }
   }
 
-  private clearActiveTurn(threadId: string): void {
+  private clearActiveTurn(threadId: string, expectedTurnId: string): void {
     const turnId = this.activeTurnByThread.get(threadId)
+    if (turnId !== expectedTurnId) return
     const existed = this.activeTurnByThread.delete(threadId)
     if (turnId) {
       this.closeStreamingItemsByTurn.delete(turnId)
@@ -10249,7 +10273,7 @@ export class CodexClaudeAppServer {
       // Its end was recorded, but whatever ended it never let go of the
       // thread.
       if (this.activeTurnByThread.get(threadId) === turn.id) {
-        this.clearActiveTurn(threadId)
+        this.clearActiveTurn(threadId, turn.id)
         this.setThreadStatus(peer, threadId, { type: 'idle' })
       }
       return false
@@ -10262,7 +10286,7 @@ export class CodexClaudeAppServer {
       method: 'turn/completed',
       params: { threadId, turn: this.toLifecycleTurn(completed) },
     })
-    this.clearActiveTurn(threadId)
+    this.clearActiveTurn(threadId, turn.id)
     this.setThreadStatus(peer, threadId, { type: 'idle' })
     return true
   }
