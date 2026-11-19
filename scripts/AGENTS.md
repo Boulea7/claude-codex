@@ -31,7 +31,7 @@ plain `.mjs` / shell.
   under `crates/claude-codex-protocol/fixtures/`: validates their shape and
   checks their methods against the TypeScript schema the real Codex CLI
   generates (`npm run check:rust-protocol-fixtures`). Needs the real `codex`
-  binary, not the shim: set `CODEX_REAL`, as CI does.
+  binary, not the shim: `CODEX_REAL` (as CI sets it) or a real `codex` on PATH.
 - `check-app-upgrade.mjs` — checks a new Codex App bundle (or its `app.asar`,
   or an extracted copy) against `app-baseline.json` (the last verified build)
   and lists the App rules to re-check (`npm run check:app-upgrade`). The

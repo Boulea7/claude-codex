@@ -62,28 +62,32 @@ Codex and Claude Code config bridging:
 - `project-instructions.mts` — AGENTS.md (read the Codex way) plus bridged
   CLAUDE.md, rules and project skills for a thread's folder.
 - `claude-agents.mts` — user/project `agents/*.md` subagents as the SDK's
-  `agents` option.
+  `agents` option (`CLAUDE_CODEX_CLAUDE_AGENTS=1`).
 - `claude-hooks.mts` — user/project Claude Code command hooks run as SDK hook
   callbacks (`CLAUDE_CODEX_CLAUDE_HOOKS`).
 - `sdk-hooks.mts` — assembles the SDK `hooks` option for a session.
 - `ask-rules.mts` — `permissions.ask` rules enforced through a PreToolUse
-  callback, including compound Bash command lines.
+  callback, including compound Bash command lines
+  (`CLAUDE_CODEX_CLAUDE_PERMISSIONS=1`).
 - `permission-suggestions.mts` — Claude's "don't ask again" suggestions mapped
-  to the App's approval-card choices.
+  to the App's approval-card choices (session rules and folders only with
+  `CLAUDE_CODEX_SESSION_SUGGESTIONS=1`).
 - `claude-commands.mts` — Claude Code commands the CLI reports, served through
   `skills/list` for the App's "/" popup.
-- `claude-capabilities.mts` — skill folders for `skills/list`, App plugins
-  whose skills Claude can run, and Claude-to-Codex hook event names.
+- `claude-capabilities.mts` — skill folders for `skills/list`, the
+  `hooks/list` entries and Claude-to-Codex hook event names, and App plugins
+  whose skills Claude can run.
 - `claude-models.mts` — per-model reasoning efforts the CLI reports, cached for
   `model/list`.
 - `model-profiles.mts` — per-model Claude Code process profiles
   (`CLAUDE_CODEX_MODEL_PROFILES[_FILE]`) and the fingerprint a thread pins.
 - `auto-compact.mts` — Codex `model_auto_compact_token_limit` as
-  `CLAUDE_CODE_AUTO_COMPACT_WINDOW`.
+  `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (`CLAUDE_CODEX_CODEX_AUTO_COMPACT=1`).
 - `memories.mts` — the App's memories settings driving Claude Code auto-memory
   (`CLAUDE_CODEX_MEMORIES=1`).
 - `app-settings.mts` — what `config/value/write` and `config/batchWrite` do for
-  Claude threads (App MCP servers, unsupported settings).
+  Claude threads (App MCP servers only with `CLAUDE_CODEX_APP_MCP_SERVERS=1`,
+  unsupported settings).
 - `codex-notify.mts` — runs the Codex `notify` program on turn completion
   (`CLAUDE_CODEX_CODEX_NOTIFY=1`).
 
@@ -123,6 +127,9 @@ Tools and item presentation:
   actions that fold a read-only Bash command into the App's "Explored" row.
 - `command-output.mts` — live Bash output from polling the CLI's
   `get_task_output`.
+- `foreground-shells.mts` — a foreground Bash call the CLI hands to a
+  background task when its timeout expires: keeps its command item tied to
+  that task until the CLI reports its exit.
 - `tool-input-preview.mts` — streamed Edit/Write/MultiEdit input parsed as
   partial JSON for `item/fileChange/patchUpdated`.
 - `visualize-lines.mts` — adds the private-use marks to unmarked `visualize`
