@@ -8884,6 +8884,7 @@ export class CodexClaudeAppServer {
     const { cp } = await import('node:fs/promises')
     await cp(stringOr(params.sourcePath, ''), stringOr(params.destinationPath, ''), {
       recursive: params.recursive === true,
+      verbatimSymlinks: true,
     })
     return {}
   }
