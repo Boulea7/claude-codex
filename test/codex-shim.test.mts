@@ -58,6 +58,7 @@ test('the shim hands schema generation to the real codex, never to the adapter',
     for (const args of [
       ['generate-ts', '--experimental', '--out', join(home, 'ts out')],
       ['generate-json-schema', '--out', join(home, 'schema')],
+      ['generate-internal-json-schema', '--out', join(home, 'internal')],
       // Global options may come before the subcommand.
       ['-c', 'model="o3"', 'generate-ts', '--out', join(home, 'ts')],
     ]) {

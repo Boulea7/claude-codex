@@ -82,15 +82,16 @@ no_daemon_running() {
   echo "Error: no app-server daemon is running at $socket" >&2
 }
 
-# `app-server generate-ts` / `generate-json-schema` write the protocol
-# bindings and exit. The adapter has no such subcommands (it would start a
-# stdio server instead), so these always belong to the real codex.
+# `app-server generate-ts` / `generate-json-schema` (and the hidden
+# `generate-internal-json-schema`) write the protocol bindings and exit. The
+# adapter has no such subcommands (it would start a stdio server instead), so
+# these always belong to the real codex.
 is_schema_generator() {
   shift
   local arg
   for arg in "$@"; do
     case "$arg" in
-      generate-ts | generate-json-schema) return 0 ;;
+      generate-ts | generate-json-schema | generate-internal-json-schema) return 0 ;;
     esac
   done
   return 1
