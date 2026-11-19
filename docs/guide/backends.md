@@ -94,7 +94,8 @@ export CLAUDE_CODEX_HTTP_BASE_URL="http://127.0.0.1:3284"
 # Start a bridge per thread cwd and model through `claude-codex-mode
 # ensure-bridge` (45 s limit) and use the URL it prints; off by default, and
 # set to 1 by `claude-codex-mode set agent-http|agentapi`. Title and summary
-# turns still use the base URL. The helper command defaults to claude-codex-mode.
+# turns never reach a bridge; the adapter answers them itself. The helper
+# command defaults to claude-codex-mode.
 export CLAUDE_CODEX_HTTP_MANAGE_BRIDGE="1"
 export CLAUDE_CODEX_MODE_COMMAND="claude-codex-mode"
 
@@ -138,8 +139,9 @@ export CLAUDE_CODEX_CLAUDE_P_COMMAND="claude-p"
 export CLAUDE_CODEX_CLAUDE_P_TIMEOUT_MS="300000"
 export CLAUDE_CODEX_CLAUDE_P_STOP_TIMEOUT_RETRIES="1"
 
-# Always pass --dangerously-skip-permissions (off by default). Without it the
-# flag is passed only for turns with approval policy "never" or the
+# Always pass --dangerously-skip-permissions (off by default), so Claude runs
+# every tool without asking whatever the thread's approval policy. Without it
+# the flag is passed only for turns with approval policy "never" or the
 # danger-full-access sandbox.
 # export CLAUDE_CODEX_CLAUDE_P_SKIP_PERMISSIONS=1
 ```
