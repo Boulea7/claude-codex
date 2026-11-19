@@ -22,8 +22,11 @@ import type { RuntimeEvent, RuntimeHandlers, RuntimeTurnContext } from '../src/t
 // writes debug.jsonl under the adapter home. Point that home at a temp dir so
 // this suite never writes into the developer's ~/.codex, where a real
 // adapter's startup reaper would read the stray records.
+// The CLI child registry write is fire-and-forget and lands after test.after
+// removes the dir, so it is off here; cli-orphans.test covers it.
 const adapterHome = mkdtempSync(join(tmpdir(), 'claude-hooks-adapter-home-'))
 process.env.CLAUDE_CODEX_HOME = adapterHome
+process.env.CLAUDE_CODEX_REAP_ORPHANED_CLI = '0'
 test.after(() => rmSync(adapterHome, { recursive: true, force: true, maxRetries: 5 }))
 
 async function write(path: string, text: string): Promise<void> {
