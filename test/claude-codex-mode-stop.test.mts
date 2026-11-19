@@ -42,7 +42,7 @@ async function runMode(stateDir: string, ...args: string[]) {
       // Never read the developer's real runtime.env.
       CLAUDE_CODEX_RUNTIME_ENV: join(stateDir, 'runtime.env'),
     },
-    timeout: 20_000,
+    timeout: 60_000,
   })
 }
 

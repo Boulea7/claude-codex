@@ -365,6 +365,10 @@ stop_pidfile() {
   if [ ! -f "$file" ]; then return 0; fi
   local pid
   pid="$(cat "$file" 2>/dev/null || true)"
+  # Only a real pid: 0 or a negative value would signal a whole process group.
+  case "$pid" in
+    '' | *[!0-9]* | 0 | 1) rm -f "$file"; return 0 ;;
+  esac
   if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
     kill "$pid" 2>/dev/null || true
     if ! wait_pid_exit "$pid" 30; then
