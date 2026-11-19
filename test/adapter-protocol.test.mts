@@ -8,6 +8,7 @@ import test from 'node:test'
 import {
   adapter,
   awaitMessage,
+  delay,
   JsonLineReader,
   json,
   readUntil,
@@ -627,6 +628,89 @@ test('remote utility methods use v2 response shapes', async () => {
     }
     assert.equal(plugin.summary.name, 'browser-use')
   } finally {
+    proc.kill()
+    await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 80 })
+  }
+})
+
+test('command/exec stops the whole process group on timeout or terminate and drains briefly', {
+  skip: process.platform === 'win32',
+}, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'claude-codex-test-'))
+  const proc = spawn(process.execPath, [adapter, 'app-server', '--listen', 'stdio://'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, CODEX_HOME: home, CLAUDE_CODEX_MOCK: '1', NODE_NO_WARNINGS: '1' },
+  })
+  const reader = new JsonLineReader(proc)
+  const leftRunning: number[] = []
+  const alive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+  let id = 0
+  const exec = async (params: Record<string, unknown>) => {
+    const requestId = ++id
+    const started = Date.now()
+    proc.stdin.write(json({ id: requestId, method: 'command/exec', params }))
+    const { result } = await reader.nextResponse(requestId)
+    return { result, elapsed: Date.now() - started }
+  }
+  // The shell prints the pid of the sleep it put in the background.
+  const sleeper = (rest: string) => ['sh', '-c', `sleep 30 & echo $!; ${rest}`]
+  const sleepPid = (stdout: string): number => {
+    const pid = Number(stdout.trim().split('\n')[0])
+    assert.ok(Number.isInteger(pid) && pid > 0, `no background pid in ${JSON.stringify(stdout)}`)
+    leftRunning.push(pid)
+    return pid
+  }
+  const gone = async (pid: number) => {
+    for (let waited = 0; alive(pid) && waited < 3_000; waited += 50) await delay(50)
+    assert.equal(alive(pid), false, `process ${pid} still running`)
+  }
+  try {
+    const timedOut = await exec({ command: sleeper('wait'), timeoutMs: 300 })
+    assert.equal(timedOut.result.exitCode, 124)
+    assert.ok(timedOut.elapsed < 5_000, `answered after ${timedOut.elapsed} ms`)
+    await gone(sleepPid(timedOut.result.stdout))
+
+    // SIGTERM is ignored by the shell and the sleep it runs: SIGKILL follows.
+    const stubborn = await exec({
+      command: ['sh', '-c', 'trap "" TERM; sleep 30 & echo $!; wait'],
+      timeoutMs: 300,
+    })
+    assert.equal(stubborn.result.exitCode, 124)
+    assert.ok(stubborn.elapsed < 5_000, `answered after ${stubborn.elapsed} ms`)
+    await gone(sleepPid(stubborn.result.stdout))
+
+    // A command that exits is answered after a bounded drain, not when the
+    // process it left in the background exits.
+    const background = await exec({ command: sleeper('echo started') })
+    assert.equal(background.result.exitCode, 0)
+    assert.match(background.result.stdout, /started\n$/)
+    assert.ok(background.elapsed < 5_000, `answered after ${background.elapsed} ms`)
+    assert.equal(alive(sleepPid(background.result.stdout)), true)
+
+    const requestId = ++id
+    proc.stdin.write(
+      json({
+        id: requestId,
+        method: 'command/exec',
+        params: { processId: 'stop-me', command: sleeper('wait'), disableTimeout: true },
+      }),
+    )
+    await delay(300)
+    proc.stdin.write(
+      json({ id: ++id, method: 'command/exec/terminate', params: { processId: 'stop-me' } }),
+    )
+    const { result: terminated } = await reader.nextResponse(requestId)
+    assert.notEqual(terminated.exitCode, 0)
+    await gone(sleepPid(terminated.stdout))
+  } finally {
+    for (const pid of leftRunning) if (pid > 0 && alive(pid)) process.kill(pid, 'SIGKILL')
     proc.kill()
     await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 80 })
   }
@@ -1257,7 +1341,17 @@ test('optional auto worktree binds new threads to isolated git worktrees', async
   execFileSync('git', ['add', 'README.md'], { cwd: repo })
   execFileSync(
     'git',
-    ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'init'],
+    [
+      '-c',
+      'user.name=Test',
+      '-c',
+      'user.email=test@example.com',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-m',
+      'init',
+    ],
     { cwd: repo, stdio: 'ignore' },
   )
 
@@ -1630,6 +1724,109 @@ test('thread sections paginate without losing entries at page boundaries', async
   } finally {
     proc.kill()
     await once(proc, 'exit')
+    await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 80 })
+  }
+})
+
+test('TTY process/spawn drains output and reports child exit status without process/kill', {
+  timeout: 20_000,
+}, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'claude-codex-pty-exit-'))
+  const proc = spawnMockAdapter(home)
+  const reader = new JsonLineReader(proc)
+  try {
+    const cases = [
+      { command: ['sh', '-c', 'printf bye; exit 3'], code: 3, output: 'bye' },
+      { command: ['sh', '-c', 'kill -TERM $$'], code: 143, output: '' },
+      { command: ['/definitely/missing/claude-codex-pty-test'], code: 127, output: '' },
+    ]
+    for (const [index, scenario] of cases.entries()) {
+      const processHandle = `tty-exit-${index}`
+      proc.stdin.write(
+        json({
+          id: index + 1,
+          method: 'process/spawn',
+          params: {
+            processHandle,
+            command: scenario.command,
+            tty: true,
+            streamStdoutStderr: false,
+          },
+        }),
+      )
+      await reader.nextResponse(index + 1)
+      const messages = await readUntil(
+        reader,
+        (message) =>
+          message.method === 'process/exited' && message.params.processHandle === processHandle,
+      )
+      const exited = messages.at(-1)?.params
+      assert.equal(exited.exitCode, scenario.code)
+      const output = messages
+        .filter((message) => message.method === 'process/outputDelta')
+        .map((message) => Buffer.from(message.params.deltaBase64, 'base64').toString('utf8'))
+        .join('')
+      assert.equal(output, scenario.output)
+    }
+  } finally {
+    proc.kill()
+    await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 80 })
+  }
+})
+
+test('TTY process/spawn closeStdin stops a same-group descendant that outlives the leader', {
+  timeout: 20_000,
+}, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'claude-codex-pty-close-'))
+  const proc = spawnMockAdapter(home)
+  const reader = new JsonLineReader(proc)
+  try {
+    const processHandle = 'tty-close'
+    const script = [
+      'import os, signal, time',
+      'signal.signal(signal.SIGHUP, signal.SIG_IGN)',
+      'leader = os.getpid()',
+      'if os.fork() == 0:',
+      '    while os.getppid() == leader:',
+      '        time.sleep(0.02)',
+      "    os.write(1, b'orphaned')",
+      '    time.sleep(30)',
+      '    os._exit(0)',
+      'os._exit(3)',
+    ].join('\n')
+    proc.stdin.write(
+      json({
+        id: 1,
+        method: 'process/spawn',
+        params: {
+          processHandle,
+          command: ['python3', '-c', script],
+          tty: true,
+          streamStdoutStderr: false,
+        },
+      }),
+    )
+    await reader.nextResponse(1)
+    await readUntil(
+      reader,
+      (message) =>
+        message.method === 'process/outputDelta' &&
+        message.params.processHandle === processHandle &&
+        Buffer.from(message.params.deltaBase64, 'base64').toString('utf8').includes('orphaned'),
+    )
+    const started = Date.now()
+    proc.stdin.write(
+      json({ id: 2, method: 'process/writeStdin', params: { processHandle, closeStdin: true } }),
+    )
+    const messages = await readUntil(
+      reader,
+      (message) =>
+        message.method === 'process/exited' && message.params.processHandle === processHandle,
+    )
+    assert.equal(messages.at(-1)?.params.exitCode, 3)
+    assert.ok(Date.now() - started < 5_000)
+  } finally {
+    proc.kill()
     await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 80 })
   }
 })

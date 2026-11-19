@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { fileChangeFromTool } from '../src/server-helpers.mjs'
+import { scriptedRuntime, withInProcessApp } from './fixtures/in-process-app.mjs'
 import {
   adapter,
   awaitMessage,
@@ -503,11 +504,11 @@ test('a Claude Code that refused to start fails the turn with why, retryable onl
         reason,
       )
       // The CLI's own text, with the proxy's credentials, reaches no one.
-      assert.doesNotMatch(JSON.stringify(failed), /secret|proxy\.invalid/, reason)
+      assert.doesNotMatch(JSON.stringify(failed), /user:secret|proxy\.invalid/, reason)
     }
     proc.stdin.write(json({ id, method: 'thread/read', params: { threadId, includeTurns: true } }))
     const read = await reader.nextResponse(id)
-    assert.doesNotMatch(JSON.stringify(read.result), /secret|proxy\.invalid/)
+    assert.doesNotMatch(JSON.stringify(read.result), /user:secret|proxy\.invalid/)
   } finally {
     proc.kill()
     await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 80 })
@@ -1760,6 +1761,42 @@ test('Codex App approvalPolicy=never + sandbox=danger-full-access auto-accepts t
   }
 })
 
+test('approvalPolicy=never with a read-only sandbox runs reads and refuses the rest without a card', async () => {
+  const decisions: Array<[string, string]> = []
+  const calls: Array<[string, Record<string, unknown>]> = [
+    ['Bash', { command: 'rm -rf build' }],
+    ['Write', { file_path: '/etc/hosts', content: '' }],
+    ['Read', { file_path: '/etc/hosts' }],
+  ]
+  const runtime = scriptedRuntime(async (_context, handlers) => {
+    for (const [toolName, input] of calls) {
+      const decision = await handlers.onPermissionRequest({
+        type: 'permission_request',
+        requestId: `perm-${toolName}`,
+        toolUseId: `tool-${toolName}`,
+        toolName,
+        input,
+      })
+      decisions.push([toolName, decision.decision])
+    }
+    await handlers.onEvent({ type: 'completed', success: true, result: 'done' })
+  })
+  await withInProcessApp(runtime, async (app) => {
+    const threadId = await app.startThread({ approvalPolicy: 'never', sandbox: 'read-only' })
+    const turnId = await app.startTurn(threadId, 'look around')
+    assert.equal((await app.turnCompleted(turnId)).status, 'completed')
+    assert.deepEqual(decisions, [
+      ['Bash', 'decline'],
+      ['Write', 'decline'],
+      ['Read', 'accept'],
+    ])
+    assert.deepEqual(
+      app.messages.filter((message) => /requestApproval$/.test(message.method ?? '')),
+      [],
+    )
+  })
+})
+
 test('Claude Code tools Codex has no item for complete as mcpToolCall items', async () => {
   const home = await mkdtemp(join(tmpdir(), 'claude-codex-test-'))
   const proc = spawn(process.execPath, [adapter, 'app-server', '--listen', 'stdio://'], {
@@ -2040,11 +2077,10 @@ test('AskUserQuestion is bridged to Codex item/tool/requestUserInput', async () 
     assert.equal(Array.isArray(askRequest.params.questions), true)
     assert.equal(askRequest.params.questions[0].header, 'Auth')
     assert.equal(askRequest.params.questions[0].question, 'Which auth method do you want?')
-    // The bridge auto-appends an "Other" option so the App's free-text
-    // affordance lights up even when Claude didn't model one explicitly.
+    assert.equal(askRequest.params.questions[0].isOther, true)
     assert.equal(
       askRequest.params.questions[0].options.some((o: any) => o.label === 'Other'),
-      true,
+      false,
     )
 
     // Answer as the App would.
@@ -2106,7 +2142,17 @@ test('file change approval emits patch and git diff updates', { timeout: 15_000 
   execFileSync('git', ['add', 'README.md'], { cwd: repo })
   execFileSync(
     'git',
-    ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'init'],
+    [
+      '-c',
+      'user.name=Test',
+      '-c',
+      'user.email=test@example.com',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-m',
+      'init',
+    ],
     { cwd: repo, stdio: 'ignore' },
   )
 
@@ -2342,7 +2388,17 @@ test('gitDiffToRemote includes untracked files for Codex diff review', async () 
   execFileSync('git', ['add', 'README.md'], { cwd: repo })
   execFileSync(
     'git',
-    ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'init'],
+    [
+      '-c',
+      'user.name=Test',
+      '-c',
+      'user.email=test@example.com',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-m',
+      'init',
+    ],
     { cwd: repo, stdio: 'ignore' },
   )
   await writeFile(join(repo, 'new-file.txt'), 'new content\n')

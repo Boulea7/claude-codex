@@ -9,6 +9,14 @@ import { join, resolve } from 'node:path'
 
 export const adapter = resolve('dist/src/adapter.mjs')
 
+// The adapters these tests spawn inherit this environment. Drop what a
+// developer's shell or Claude Code session exports (credentials, a Claude
+// config folder, a live adapter or Codex home), as CI never has any of it.
+// Every adapter-* suite imports this module, so this runs before its tests.
+for (const key of Object.keys(process.env)) {
+  if (/^(ANTHROPIC_|CLAUDE|CODEX_)/.test(key)) delete process.env[key]
+}
+
 // The agent messages a thread's turn published, as their item/completed carried them.
 export function completedAgentMessages(messages: any[], threadId: string): any[] {
   return messages
@@ -148,6 +156,17 @@ export async function startMockThread(
 
 export function textInput(text: string): unknown[] {
   return [{ type: 'text', text, text_elements: [] }]
+}
+
+export function codex930Initialize(id: number) {
+  return {
+    id,
+    method: 'initialize',
+    params: {
+      clientInfo: { name: 'Codex Desktop', title: 'Codex Desktop', version: '26.930.21537' },
+      capabilities: { experimentalApi: true },
+    },
+  }
 }
 
 export class JsonLineReader {

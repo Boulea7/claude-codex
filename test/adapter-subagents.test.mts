@@ -10,6 +10,7 @@ import { QUIET_TURN_HEARTBEAT } from '../src/quiet-turns.mjs'
 import { SessionStore } from '../src/store.mjs'
 import {
   adapter,
+  codex930Initialize,
   completedAgentMessages,
   JsonLineReader,
   json,
@@ -2336,17 +2337,6 @@ test("the spawn card shows an agent's own model and effort, and a fork's parent 
     await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 80 })
   }
 })
-
-function codex930Initialize(id: number) {
-  return {
-    id,
-    method: 'initialize',
-    params: {
-      clientInfo: { name: 'Codex Desktop', title: 'Codex Desktop', version: '26.930.21537' },
-      capabilities: { experimentalApi: true },
-    },
-  }
-}
 
 function activityKinds(messages: any[], threadId: string): string[] {
   return messages
