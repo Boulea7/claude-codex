@@ -128,6 +128,12 @@ versioning or publishing metadata.
   `defaultModel` value that was not valid. A model change from the menu or
   `turn/settings/update` that fails on them is now an invalid request
   (`-32600`) like one from `turn/start`, so the toast shows the reason.
+- A `CLAUDE_CODEX_MCP_SERVERS` value (or the file it names) that is not valid
+  JSON fails with a message that names the source and says what is wrong,
+  quoting none of its text. The `CLAUDE_CODEX_MCP_SERVERS` server status in
+  the App and the debug log used to carry the JSON parser's excerpt of it,
+  which could include a credential; JSON wrapped in quotes was echoed whole
+  as a file that was not found.
 - `claude-codex-mode logs agent-http|agentapi` and `tail agent-http|agentapi`
   show the pooled bridge log written to most recently. They used to show the
   oldest one, so the log a failed bridge start pointed you to was usually
