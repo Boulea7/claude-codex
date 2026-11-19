@@ -2,17 +2,15 @@
 
 [English](README.md)
 
-[![CI](https://github.com/fuergaosi233/claude-codex/actions/workflows/ci.yml/badge.svg)](https://github.com/fuergaosi233/claude-codex/actions/workflows/ci.yml)
-[![文档](https://github.com/fuergaosi233/claude-codex/actions/workflows/deploy-docs.yml/badge.svg)](https://fuergaosi233.github.io/claude-codex/)
+> 本文与 [README.md 的 eb9940c34 版本](https://github.com/nwverse/claude-codex/blob/eb9940c34/README.md) 校对。后续更新请参阅[英文版](README.md)。
+
+[![CI](https://github.com/nwverse/claude-codex/actions/workflows/ci.yml/badge.svg)](https://github.com/nwverse/claude-codex/actions/workflows/ci.yml)
+[![文档](https://github.com/nwverse/claude-codex/actions/workflows/deploy-docs.yml/badge.svg)](https://nwverse.github.io/claude-codex/)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-brightgreen)](https://nodejs.org)
 
 生产级 TypeScript 适配器，让 **Codex 桌面版**在 Remote 模式下通过原生 Codex `app-server` 协议与 **Claude Code** 对话。
 
 Codex App 仍执行正常的 SSH 版本探测、引导和 `app-server proxy` 流程，但 `codex app-server` 由这个适配器接管，而不是真正的 Codex 运行时，因此 Agent 轮次实际运行在 Claude Code 上。
-
-[![Claude Codex 宣传片：在 Codex 桌面版中使用 Claude Code](docs/assets/promo-preview-zh.webp)](#视频介绍)
-
-[观看视频介绍（含声音）](#视频介绍)
 
 <p align="center">
   <img src="docs/public/images/inline-visualization.png" width="720"
@@ -22,13 +20,23 @@ Codex App 仍执行正常的 SSH 版本探测、引导和 `app-server proxy` 流
 <p align="center"><sub>在 Codex App 对话中让 Claude 绘制六个月的注册量图表，
 Claude 用<a href="#内联可视化">内联可视化</a>作答，由 App 直接渲染在回复中。请求使用中文，图中标签也使用中文。</sub></p>
 
-📖 **文档：<https://fuergaosi233.github.io/claude-codex/>**
+<details>
+<summary>查看动画演示</summary>
 
-## 视频介绍
+![指针依次高亮注册量图表中的六月和五月](docs/public/images/inline-visualization.webp)
 
-https://github.com/user-attachments/assets/6892a0b6-4d30-42bd-96a3-89e380754075
+动画使用截图中的同一组合成数据。指向六月可见 204 次注册（环比增长 27.5%），指向五月则显示 160 次（环比下降 6.4%）。
 
-[下载高清版和字幕](https://github.com/nwverse/claude-codex/releases/tag/promo-v1)
+</details>
+
+📖 **文档：<https://nwverse.github.io/claude-codex/>**
+
+## 社区视频演示
+
+贡献者 Boulea7 在视频中演示了 Claude 对话、主对话工具和内联图表。
+主对话工具需要设置 `CLAUDE_CODEX_LEADER_TOOLS=1`，图表需要支持可视化的 Codex App 版本。
+
+[观看中文演示（MP4）](https://github.com/Boulea7/claude-codex/releases/download/promo-v1/claude-codex-zh.mp4) · [中文字幕（SRT）](https://github.com/Boulea7/claude-codex/releases/download/promo-v1/claude-codex-zh.srt)
 
 ## 快速开始
 
@@ -39,10 +47,32 @@ npm run dev          # tsx src/adapter.mts — run sources directly, no build
 npm run doctor       # environment self-check
 ```
 
-> **需要 Node.js 24+**，以使用稳定的 `node:sqlite`。如果默认 Node 版本较低，
-> 请通过 `CLAUDE_CODEX_NODE` 指定 Node 可执行文件。
+> **需要 Node.js 24+** 才能使用稳定的 `node:sqlite`。请用该版本运行以下命令。SSH shim 使用 `CLAUDE_CODEX_NODE` 指定的 Node 可执行文件。
 
-然后在远程主机安装 `codex` shim，并在 Codex App 中添加 Remote 连接：
+### 与 Orca 和原生 Codex 共用工作站
+
+原生 Codex CLI 可以用 `--remote` 连接独立的适配器。Codex App 使用下一节的 SSH shim。
+
+在当前仓库启动前台适配器，使用平时的 Claude Code 登录或通过 shell 提供的凭据。
+
+```bash
+node dist/src/isolated-launch.mjs --state-dir "$PWD/.claude-codex/local" --port 8790
+```
+
+在另一个终端中，将指定的原生 Codex CLI 连接到适配器。
+
+```bash
+CLAUDE_CODEX_REMOTE_TOKEN="$(cat "$PWD/.claude-codex/local/adapter/ws-token")" \
+  codex --remote ws://127.0.0.1:8790 --remote-auth-token-env CLAUDE_CODEX_REMOTE_TOKEN
+```
+
+安装后的命令名为 `claude-codex-isolated`。启动器将 Codex 主目录、适配器数据库、日志和生成的令牌存入指定目录。省略 `--port` 时会分配空闲的回环端口，请将启动时显示的地址传给 `--remote`。每个并行实例使用独立的状态目录。端口已占用或目录被保留时，启动器会报告错误。按 **Ctrl-C** 或向启动时显示的启动器 PID 发送 **SIGTERM**，即可停止该实例，并保留状态供下次启动。
+
+此方式可沿用原生 `codex`、PATH、shell 设置和 Orca 配置。CLI 需要支持 `--remote` 和 `--remote-auth-token-env`。如果已安装全局 shim，需要使用原生 Codex 的客户端应指定实际的可执行文件。[部署指南](https://nwverse.github.io/claude-codex/guide/deployment#alongside-orca-and-native-codex)说明了生命周期、崩溃恢复和环境配置。
+
+### 通过 SSH 使用 Codex App
+
+在专用远程主机安装 `codex` shim，并在 Codex App 中添加远程连接。
 
 ```bash
 mkdir -p ~/bin
@@ -52,10 +82,12 @@ export CLAUDE_CODEX_ADAPTER="$PWD/dist/src/adapter.mjs"
 export ANTHROPIC_API_KEY="<your-anthropic-api-key>" # or authenticate with `claude /login`
 ```
 
+shim 会接管传给它的所有以 `app-server` 为首个参数的调用，包括 Orca 结构化对话。`CODEX_REAL` 负责转发其他命令。若工作站还运行 Orca 或原生 Codex，请采用上面的独立启动方式。旧的 `claude-codex-mode` 切换或重启命令会匹配整台主机的 app-server 进程，独立实例应使用自己的前台启动器管理生命周期。
+
 凭据只能通过本地 shell 或密钥管理器提供。不要提交 API key、OAuth/会话数据、
 `.env` 文件或验收测试日志。
 
-完整步骤见 **[入门指南](https://fuergaosi233.github.io/claude-codex/guide/getting-started)**。
+完整步骤见 **[入门指南](https://nwverse.github.io/claude-codex/guide/getting-started)**。
 
 ## 工作原理
 
@@ -77,7 +109,7 @@ App 通过 `codex app-server --listen unix://` 启动一个适配器守护进程
 `$CODEX_HOME/app-server-control/app-server-control.sock`。要更改位置，请在登录
 shell 或 `~/.claude-codex/runtime.env` 中把 `CLAUDE_CODEX_SOCKET_PATH` 设为独立
 目录下的绝对路径，守护进程和 proxy 必须一致。详见
-[配置](https://fuergaosi233.github.io/claude-codex/guide/configuration)。
+[配置](https://nwverse.github.io/claude-codex/guide/configuration)。
 
 每个 Claude 线程运行自己的 Claude Code 进程。多个线程同时启动时，例如适配器或
 App 重启后所有对话同时恢复 Claude 会话，它们会并发写入用户的 Claude Code 配置
@@ -92,7 +124,7 @@ App 重启后所有对话同时恢复 Claude 会话，它们会并发写入用�
 （`subagent_type: "fork"`）；从 2.1.302 起 Claude Code 默认向 Agent SDK 会话提供
 fork，App 中显示为角色 `fork` 的子 Agent。使用模型进程配置时，只有配置的
 `inheritEnv` 列出该变量或 `env` 设置它，变量才会传给对应配置。详见
-[Claude Code 变量](https://fuergaosi233.github.io/claude-codex/guide/configuration#claude-code-variables)。
+[Claude Code 变量](https://nwverse.github.io/claude-codex/guide/configuration#claude-code-variables)。
 
 ### 模型进程配置
 
@@ -104,7 +136,7 @@ fork，App 中显示为角色 `fork` 的子 Agent。使用模型进程配置时�
 引用它们。对话始终保持启动时的配置。配置修改后，或对于创建配置前的旧对话，
 仍可打开阅读，但发送新消息会要求新建对话，而不是在其他地方恢复旧会话。未提供
 配置文件时行为不变。文件格式、安全规则及其与 `CLAUDE_CODEX_MODELS` 的关系见
-[模型进程配置](https://fuergaosi233.github.io/claude-codex/guide/configuration#model-process-profiles)。
+[模型进程配置](https://nwverse.github.io/claude-codex/guide/configuration#model-process-profiles)。
 
 ### 桌面对话与可视化讲解
 
@@ -134,7 +166,7 @@ Codex App 自己的可视化沙箱渲染。适配器记住 App 启动时安装�
 App 只为 Codex 签发的 UUIDv7 线程 ID 读取可视化。新线程、fork 和子 Agent 都会
 获得这种 ID；此前创建的对话仍可使用，但不能渲染内联可视化。文件规则（小写连
 字符 `.html` 文件名、位于线程目录或 `/tmp` 内的绝对路径、最大 5 MB）见
-**[使用 Codex App](https://fuergaosi233.github.io/claude-codex/guide/gui#inline-visualizations)**。
+**[使用 Codex App](https://nwverse.github.io/claude-codex/guide/gui#inline-visualizations)**。
 
 ### Pull Requests 面板
 
@@ -150,7 +182,7 @@ Codex App 的 Pull Requests 面板与内置 `code-review` 插件的 MCP 服务�
 插件使用主机的 GitHub 凭据，例如已有 `gh` 登录；适配器不读取、记录或转发任何
 令牌。从面板发起审查会运行 Codex CLI 自己的 `exec`，需要可用的 Codex 安装和登录；
 插件基于 ChatGPT 的 GitHub 连接不可用，因为它会启动第二个 app-server。详见
-**[使用 Codex App](https://fuergaosi233.github.io/claude-codex/guide/gui#pull-requests-panel)**。
+**[使用 Codex App](https://nwverse.github.io/claude-codex/guide/gui#pull-requests-panel)**。
 
 ### 项目指令
 
@@ -176,9 +208,7 @@ Claude 线程。Stdio 服务器保留 `args`、`env`、`env_vars` 和 `cwd`；st
 位于适配器 home 中并在 CLI 会话结束时删除，不放在任何本地进程都能读取的 CLI 命令行。
 `env_vars`、`env_http_headers` 和 `bearer_token_env_var` 指定的值也不写入该文件：文件
 以 `${NAME}` 引用它们，CLI 从适配器传来的环境中填充。因此，从允许列表重建 CLI 环境
-的启动器会丢弃这些值；与任何服务器配置引用一样，它们不能使用 CLI 自己的凭据，也不
-能使用 CLI 凭据列表中的远程凭据名（如 `VAULT_TOKEN` 或 `NPM_TOKEN`），否则会得到空值，
-应为这种值换一个名字。直接写入 Codex 配置的值会原样传递，包括 `${...}`，与 Codex 的
+的启动器会丢弃这些值；与其他服务器配置引用一样，这里也不能使用 CLI 自身的凭据。对远程服务器，CLI 凭据列表中的名字（如 `VAULT_TOKEN` 或 `NPM_TOKEN`）会得到空值，请为这些值换一个名字。直接写入 Codex 配置的值会原样传递，包括 `${...}`，与 Codex 的
 行为一致。`enabled = false` 的服务器保持关闭，`disabled_tools` 不提供给 Claude，调用
 `enabled_tools` 之外的工具会被拒绝，`tool_timeout_sec` 成为工具调用超时。Codex OAuth
 登录、`startup_timeout_sec`、`required`、逐工具审批设置和插件带来的服务器不会传入
@@ -280,7 +310,7 @@ Claude Code 接受的 100,000 到 1,000,000 tokens），优先于 Claude Code �
 `CLAUDE_CODEX_CODEX_AUTO_COMPACT=1` 时，`CODEX_HOME/config.toml` 或受信任项目
 `.codex/config.toml` 中的该键也生效。此功能默认关闭，因为用户通常为 Codex 模型设置该键，
 否则会在每个 Claude 线程替换他们的 Claude Code 窗口。未设置时保留 Claude Code 自己的窗口。
-详见**[配置](https://fuergaosi233.github.io/claude-codex/guide/configuration#context-compaction)**。
+详见**[配置](https://nwverse.github.io/claude-codex/guide/configuration#context-compaction)**。
 
 ### 主对话
 
@@ -292,7 +322,7 @@ Claude Code 接受的 100,000 到 1,000,000 tokens），优先于 Claude Code �
 继承主对话权限且不会更多，不能再作为主对话；主对话最多同时运行
 `CLAUDE_CODEX_LEADER_MAX_RUNNING`（默认 4）个对话，也不会替它们回答审批或提问，这些仍
 由你处理。这些工具需要原生 Claude Agent SDK 后端；详见
-**[使用 Codex App](https://fuergaosi233.github.io/claude-codex/guide/gui#leader-chats)**。
+**[使用 Codex App](https://nwverse.github.io/claude-codex/guide/gui#leader-chats)**。
 
 ### `/workflows` 兼容性
 
@@ -309,7 +339,7 @@ workflow 触发词。Workflow 任务事件以 Codex 原生、可审查的子 Age
 进度、workflow Agent 启动或结束）都会重新计时，因此长时间但健康的 workflow 能运行到结束。
 等待用户期间暂停计时，电脑休眠时间不计。最终放弃时轮次失败，卡住的 Agent 停止；已交接的
 后台 Agent 继续运行。详见
-[配置参考](https://fuergaosi233.github.io/claude-codex/guide/configuration#reference-table)。
+[配置参考](https://nwverse.github.io/claude-codex/guide/configuration#reference-table)。
 
 子 Agent 线程会随工作推进显示其消息、思考和带结果的工具调用，并保存在该线程中；父对话
 不显示这些内容。`CLAUDE_CODEX_SUBAGENT_ITEMS=0` 可让子 Agent 线程只保留提示词和答案。
@@ -320,7 +350,7 @@ workflow 事件桥。暂停、恢复、停止和保存等交互式 workflow 管�
 选择 Codex Full Access 时，适配器让 Claude 保持标准权限模式，并通过现有 Codex 桥自动批准
 权限请求。这避免 Relay 在可识别容器沙箱之外拒绝危险权限绕过，同时保持 Full Access 轮次
 零提示。在适当隔离的环境中，运维者仍可显式设置
-`CLAUDE_CODEX_PERMISSION_MODE=bypassPermissions`，选择原生 SDK bypass。
+`CLAUDE_CODEX_PERMISSION_MODE=bypassPermissions`，选择原生 SDK bypass。Agent SDK 后端对所有 Claude 对话应用此变量，它的优先级高于 App 的 Plan 模式、审批策略和沙箱设置。详见[配置参考](https://nwverse.github.io/claude-codex/guide/configuration#reference-table)。
 
 ## 当前版本边界
 
@@ -329,24 +359,24 @@ workflow 事件桥。暂停、恢复、停止和保存等交互式 workflow 管�
 - **提供方与 Agent 循环：** 已实现描述符、脱敏的 `config/read` 投影和显式提供方/循环选择。选择仅是已知描述符的元数据与路由，映射到现有运行时后端，不新增可执行的提供方循环。
 - **凭据模型：** 使用用户本地持有的 API key、官方云提供方凭据链、同一主机上的本地 CLI 登录，或由组织管理且负责计费、策略、审计和提供方合规的网关。
 - **不支持：** 个人订阅 pooling、浏览器 cookie 或会话令牌复用、凭据共享、私有端点使用、绕过提供方的行为，以及声称拥有不存在的权限。
-- **发布检查：** CI 运行 `npm run check`、`npm run typecheck`、`npm test`、`cargo test --workspace` 和固定 Rust fixture 漂移检查。文档变更应运行 `npm run docs:build`；需要凭据的 smoke 和验收检查仍为可选项，使用用户或组织持有的凭据。
+- **发布检查：** CI 运行 `npm run check`、`npm run typecheck`、`npm run docs:build`（站内死链会导致失败）、`npm test`、`cargo test --workspace` 和固定 Rust fixture 漂移检查。需要凭据的 smoke 和验收检查仍为可选项，使用用户或组织持有的凭据。
 
 验证矩阵和审查清单见
-**[发布就绪参考](https://fuergaosi233.github.io/claude-codex/reference/release-readiness)**。
+**[发布就绪参考](https://nwverse.github.io/claude-codex/reference/release-readiness)**。
 
 ## 文档
 
 | 主题 | 链接 |
 | --- | --- |
-| 入门 | <https://fuergaosi233.github.io/claude-codex/guide/getting-started> |
-| 部署（远程主机） | <https://fuergaosi233.github.io/claude-codex/guide/deployment> |
-| 使用 Codex App | <https://fuergaosi233.github.io/claude-codex/guide/gui> |
-| 配置 | <https://fuergaosi233.github.io/claude-codex/guide/configuration> |
-| 后端 | <https://fuergaosi233.github.io/claude-codex/guide/backends> |
-| 能力矩阵 | <https://fuergaosi233.github.io/claude-codex/reference/capability-matrix> |
-| Workflow 运维 | <https://fuergaosi233.github.io/claude-codex/reference/workflow-operations> |
-| 发布就绪 | <https://fuergaosi233.github.io/claude-codex/reference/release-readiness> |
-| 贡献 / 工具链 | <https://fuergaosi233.github.io/claude-codex/contributing> |
+| 入门 | <https://nwverse.github.io/claude-codex/guide/getting-started> |
+| 部署（远程主机） | <https://nwverse.github.io/claude-codex/guide/deployment> |
+| 使用 Codex App | <https://nwverse.github.io/claude-codex/guide/gui> |
+| 配置 | <https://nwverse.github.io/claude-codex/guide/configuration> |
+| 后端 | <https://nwverse.github.io/claude-codex/guide/backends> |
+| 能力矩阵 | <https://nwverse.github.io/claude-codex/reference/capability-matrix> |
+| Workflow 运维 | <https://nwverse.github.io/claude-codex/reference/workflow-operations> |
+| 发布就绪 | <https://nwverse.github.io/claude-codex/reference/release-readiness> |
+| 贡献 / 工具链 | <https://nwverse.github.io/claude-codex/contributing> |
 | 安全策略 | [SECURITY.md](SECURITY.md) |
 | 安全示例 | [examples/](examples/) |
 
@@ -364,13 +394,13 @@ npm run docs:dev     # preview this documentation site
 ```
 
 完整工具链和约定见
-**[贡献指南](https://fuergaosi233.github.io/claude-codex/contributing)**。
+**[贡献指南](https://nwverse.github.io/claude-codex/contributing)**。
 
 ## Workflow 运维
 
 适配器为长时间运行的 Codex 维护循环提供一个小型 workflow 控制面。它刻意采用文件
-存储并保持显式：调度器在 `~/.codex/claude-codex-adapter/workflow-state.json` 跟踪
-任务，任务只有入队并租出后才运行。
+存储并保持显式：调度器在适配器主目录的 `workflow-state.json` 跟踪任务。
+适配器主目录由 `CLAUDE_CODEX_HOME` 指定，默认是 `CODEX_HOME` 下的 `claude-codex-adapter`，而 `CODEX_HOME` 默认为 `~/.codex`。任务只有入队并租出后才运行。
 
 ```bash
 npm run workflow -- status
@@ -385,13 +415,11 @@ npm run workflow -- complete --task task-id
 没有运行中任务，或只有一个租约有效的运行中任务。租约仍有效时继续该任务，只有确实
 需要更多时间才续心跳。不要重复入队。
 
-运行事件默认追加到 `~/.codex/claude-codex-adapter/runs.jsonl`。注册表写入前会脱敏
+运行事件默认追加到适配器主目录中的 `runs.jsonl`。注册表写入前会脱敏
 提示词类字段、模型回复和看似密钥的值。`CLAUDE_CODEX_RUN_LOG=0` 可关闭日志，
 `CLAUDE_CODEX_RUN_LOG=/path/log` 可选择其他 JSONL 文件。
 
-可选的逐线程 worktree 隔离由 `CLAUDE_CODEX_WORKTREE_ROOT` 控制。线程 ID 映射为限制在
-根目录内且抗冲突的标签，已有 worktree 会复用。worktree 设置失败时，适配器记录失败并
-保留原 cwd，让 app-server 会话继续。
+逐线程 worktree 隔离默认关闭。设置 `CLAUDE_CODEX_AUTO_WORKTREE=1` 可启用，`CLAUDE_CODEX_WORKTREE_ROOT` 可指定目录，默认为适配器主目录下的 `worktrees`。启用后，Git 仓库内的新建或派生线程会使用独立的 `claude-codex/<label>` 分支。标签由线程 ID 生成，限制在根目录内，并避免冲突。已有 worktree 会复用。若创建失败，适配器会记录错误并继续使用原来的工作目录。详见 [worktree 隔离](https://nwverse.github.io/claude-codex/guide/configuration#worktree-isolation)。
 
 GitHub issue 或 PR 自动化必须经过信任边界队列。只把可信元数据导出到本地 JSON，再导入：
 
