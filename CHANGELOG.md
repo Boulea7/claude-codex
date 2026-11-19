@@ -141,6 +141,10 @@ versioning or publishing metadata.
 
 ### App-server and protocol compatibility
 
+- A `command/exec` that hits `timeoutMs` now stops its whole process group
+  (SIGTERM, then SIGKILL after 1 s) and reports `exitCode` 124. The reply comes
+  when the command exits plus at most a 2 s output drain, so a backgrounded
+  child no longer holds it. `command/exec/terminate` stops the group too.
 - Streamed `command/exec` output (`streamStdoutStderr` or `tty`) now honors
   `outputBytesCap`, including its 1,000,000-byte default, as Codex does: each
   stream is cut at the cap, the delta that reaches it carries `capReached:
