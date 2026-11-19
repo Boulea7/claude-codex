@@ -1112,6 +1112,15 @@ versioning or publishing metadata.
   fixture drift gate.
 - The docs build no longer ignores dead links, so a link to a page that does not
   exist fails CI.
+- `npm test` passes in a developer's or Claude Code's shell as it does on CI:
+  `CLAUDE_CODE_WORKFLOWS=1`, `umask 077` and a global
+  `commit.gpgsign = true` no longer fail tests, the ~105 mock adapters
+  `test/adapter.test.mts` starts no longer get the shell's `ANTHROPIC_*`,
+  `CLAUDE*` or `CODEX_*` variables, and no suite writes to the real
+  `~/.codex` debug log. Daemon and fixture tests allow for a busy machine,
+  `npm run build` clears `dist/test` so a deleted suite stops running, and a
+  hung test fails after 2 minutes instead of holding `npm test` (CI jobs stop
+  after 20).
 - Credentialed smoke and acceptance checks remain opt-in and must use
   credentials already owned by the local user or organization on the host.
 - `npm run check:app-upgrade -- --app <bundle>` checks a new Codex App build
