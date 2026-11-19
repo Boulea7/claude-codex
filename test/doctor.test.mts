@@ -217,7 +217,7 @@ test('doctor reads quoted, commented and ~ values in the runtime env file', asyn
       runtimeEnv,
       [
         '# written by hand',
-        "CLAUDE_CODEX_RUNTIME_TYPE='codex-proxy' # a comment",
+        "export CLAUDE_CODEX_RUNTIME_TYPE='codex-proxy' # a comment",
         'export CODEX_REAL="~/a\\"b\\$c\\`d\\\\e"',
         'export CLAUDE_CODEX_ADAPTER=~/missing/adapter.mjs',
         'export CLAUDE_CODEX_NODE=node; echo',
@@ -274,5 +274,23 @@ test('doctor names where the runtime type came from, not just that the file exis
     assert.match(fromEnv.stdout, /^ok - runtime type: codex-proxy \(from environment\)$/m)
     const byDefault = await runDoctor(dir, { CLAUDE_CODEX_RUNTIME_ENV: runtimeEnv })
     assert.match(byDefault.stdout, /^ok - runtime type: agent-sdk-sidecar \(default\)$/m)
+  })
+})
+
+test('doctor prints no text of a skipped line and needs export for the adapter', async () => {
+  await withTempDir(async (dir) => {
+    const runtimeEnv = join(dir, 'runtime.env')
+    const lines = [
+      'export PEM="-----BEGIN',
+      'SECRETBODY"',
+      "CLAUDE_CODEX_RUNTIME_TYPE='codex-proxy'",
+    ]
+    await writeFile(runtimeEnv, `${lines.join('\n')}\n`)
+    const result = await runDoctor(dir, { CLAUDE_CODEX_RUNTIME_ENV: runtimeEnv })
+    assert.doesNotMatch(result.stdout, /SECRETBODY/)
+    assert.match(
+      result.stdout,
+      /^fail - runtime type: cannot read CLAUDE_CODEX_RUNTIME_TYPE \(line 3\)/m,
+    )
   })
 })

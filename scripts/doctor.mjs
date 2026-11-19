@@ -48,8 +48,8 @@ check('runtime type', () => {
   )
   if (unread.length > 0)
     throw new Error(
-      `cannot read ${unread.map((item) => `${item.key} (line ${item.line})`).join(', ')} ` +
-        `in ${runtimeEnvPath}; write it as KEY="value"`,
+      `cannot read ${unread.map(skippedLine).join(', ')} ` +
+        `in ${runtimeEnvPath}; write it as export KEY="value"`,
     )
   const resolved = resolveRuntimeType()
   runtimeType = resolved.type
@@ -63,7 +63,7 @@ if (runtimeEnv.skipped.length > 0)
   check('runtime env file', () => {
     // Not a failure: the shim may read them fine. The checks below use the
     // environment's values for these keys instead.
-    const lines = runtimeEnv.skipped.map((item) => `${item.key} (line ${item.line})`)
+    const lines = runtimeEnv.skipped.map(skippedLine)
     return `skipped lines the doctor cannot evaluate: ${lines.join(', ')}`
   })
 
@@ -204,16 +204,25 @@ function readRuntimeEnv(path) {
   const skipped = []
   text.split('\n').forEach((line, index) => {
     if (/^\s*(?:#.*)?$/.test(line)) return
-    const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*?)\s*$/.exec(line)
+    const match = /^\s*(export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*?)\s*$/.exec(line)
+    // No name for other lines: one may be part of a multi-line secret value.
     if (!match) {
-      skipped.push({ key: line.trim().split(/[\s=]/)[0], line: index + 1, text: line })
+      skipped.push({ key: null, line: index + 1, text: line })
       return
     }
-    const value = shellWord(match[2])
-    if (value === null) skipped.push({ key: match[1], line: index + 1, text: line })
-    else values[match[1]] = value
+    const [, exported, key, raw] = match
+    const value = shellWord(raw)
+    // The shim sources the file without `set -a`, so the adapter it starts
+    // sees a variable set without `export` only if it is exported already.
+    if (value === null || (!exported && !(key in process.env)))
+      skipped.push({ key, line: index + 1, text: line })
+    else values[key] = value
   })
   return { values, skipped }
+}
+
+function skippedLine(item) {
+  return item.key ? `${item.key} (line ${item.line})` : `line ${item.line}`
 }
 
 // One literal shell word, then an optional comment; null for anything that
