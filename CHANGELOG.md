@@ -122,6 +122,7 @@ versioning or publishing metadata.
   show the pooled bridge log written to most recently. They used to show the
   oldest one, so the log a failed bridge start pointed you to was usually
   another bridge's.
+  They also find pooled logs when `CLAUDE_CODEX_STATE_DIR` contains a space.
 - A workflow agent that fails (one that stalled on every attempt, or hit an
   API error) ends its thread's turn as failed, with the reason the workflow
   reported, and counts as a failed subagent of its parent. It used to show as

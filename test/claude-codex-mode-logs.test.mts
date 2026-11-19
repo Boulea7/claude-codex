@@ -36,12 +36,15 @@ test('logs <bridge> shows the pooled bridge log written to most recently', async
   // A space in the path: pool folders used to be word-split.
   const stateDir = await mkdtemp(join(tmpdir(), 'claude-codex-mode logs-'))
   try {
-    await bridgeLog(stateDir, 'agentapi', 'aaaaaaaaaaaaaaaa', 'oldest', 7200)
+    const oldestDir = await bridgeLog(stateDir, 'agentapi', 'aaaaaaaaaaaaaaaa', 'oldest', 7200)
     const newestDir = await bridgeLog(stateDir, 'agentapi', 'bbbbbbbbbbbbbbbb', 'newest', 0)
     await bridgeLog(stateDir, 'agentapi', 'cccccccccccccccc', 'middle', 3600)
     // A folder touched later (a new pid file) does not make an older log the latest.
     const old = new Date(Date.now() - 600_000)
     await utimes(newestDir, old, old)
+    // The oldest log's folder is the oldest folder too, as in the issue's repro.
+    const twoHoursAgo = new Date(Date.now() - 7_200_000)
+    await utimes(oldestDir, twoHoursAgo, twoHoursAgo)
     await bridgeLog(stateDir, 'agent-http', 'dddddddddddddddd', 'other mode', 0)
 
     assert.equal(await runMode(stateDir, 'logs', 'agentapi', '5'), 'newest\n')
