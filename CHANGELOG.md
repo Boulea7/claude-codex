@@ -139,6 +139,17 @@ versioning or publishing metadata.
   `defaultModel` value that was not valid. A model change from the menu or
   `turn/settings/update` that fails on them is now an invalid request
   (`-32600`) like one from `turn/start`, so the toast shows the reason.
+- A `CLAUDE_CODEX_MCP_SERVERS` value (or the file it names) that is not valid
+  JSON fails with a message that names the source and says what is wrong,
+  quoting none of its text. The `CLAUDE_CODEX_MCP_SERVERS` server status in
+  the App and the debug log used to carry the JSON parser's excerpt of it,
+  which could include a credential; JSON wrapped in quotes was echoed whole
+  as a file that was not found.
+- `claude-codex-mode logs agent-http|agentapi` and `tail agent-http|agentapi`
+  show the pooled bridge log written to most recently. They used to show the
+  oldest one, so the log a failed bridge start pointed you to was usually
+  another bridge's.
+  They also find pooled logs when `CLAUDE_CODEX_STATE_DIR` contains a space.
 - A workflow agent that fails (one that stalled on every attempt, or hit an
   API error) ends its thread's turn as failed, with the reason the workflow
   reported, and counts as a failed subagent of its parent. It used to show as
@@ -881,6 +892,14 @@ versioning or publishing metadata.
   chat"; a queued message or goal reports that and does not run. Profiles
   replace `CLAUDE_CODEX_MODELS` and `CLAUDE_CODEX_MODEL_ALIASES` and need
   the native runtime. Without a profiles file nothing changes.
+- `ANTHROPIC_CUSTOM_HEADERS` counts as a secret in model process profiles,
+  like a key whose name contains `TOKEN`, `KEY`, `SECRET`, `PASSWORD` or
+  `AUTH`. In a profile's `env` it must be a single `${VAR}` reference, and
+  its value is a placeholder in the profile fingerprint, so rotating a
+  gateway header credential keeps chats going. A profiles file with a
+  literal value there no longer loads (move the value to the 0600 env file
+  or a `${VAR}`). A chat that already had a conversation on a profile
+  setting it, before this change, needs a new chat once after updating.
 - Resuming a Claude session copies its transcript only into the config dir
   that turn's Claude Code runs from (a model profile's, else
   `CLAUDE_CONFIG_DIR` or `~/.claude`, or with `CLAUDE_CODEX_CLI` the
