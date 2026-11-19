@@ -1235,6 +1235,15 @@ export class SessionStore {
       )
   }
 
+  // What a flush writes: only the items streamItem changed. A turn another
+  // process deleted or rolled back meanwhile stays gone instead of coming back
+  // (or failing its thread's FOREIGN KEY on every later store call).
+  private writeTurnItems(turn: TurnRecord): void {
+    this.conn
+      .prepare('UPDATE turns SET items_json = ? WHERE id = ?')
+      .run(JSON.stringify(turn.items), turn.id)
+  }
+
   // A turn streamItem holds in memory is read from there, so the status checks
   // the server runs before each streamed delta do not write it early. Only this
   // process changes a turn it owns, and its other writes flush first, so the
@@ -1749,7 +1758,7 @@ export class SessionStore {
     this.pendingTurns.clear()
     for (const [index, turn] of turns.entries()) {
       try {
-        this.writeTurn(turn)
+        this.writeTurnItems(turn)
       } catch (error) {
         for (const unwritten of turns.slice(index)) this.pendingTurns.set(unwritten.id, unwritten)
         throw error

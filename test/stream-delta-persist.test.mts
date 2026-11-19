@@ -202,6 +202,23 @@ test('another connection sees streamed deltas within the flush window', async ()
   })
 })
 
+test('a thread another process deletes mid-stream stays deleted, and the store keeps working', async () => {
+  await withStore(({ path, store, threadId, turnId }) => {
+    const otherId = randomUUID()
+    store.upsertThread(thread(otherId))
+    stream(store, turnId, 1)
+    const other = new SessionStore(path)
+    try {
+      other.deleteThread(threadId)
+    } finally {
+      other.close()
+    }
+    assert.equal(store.getThread(otherId)?.id, otherId)
+    assert.equal(store.getTurn(turnId), null)
+    assert.equal(store.completeTurn(turnId, 'completed'), null)
+  })
+})
+
 test('streamItem on an unknown turn changes nothing', async () => {
   await withStore(({ store }) => {
     assert.equal(
@@ -279,13 +296,19 @@ test("the server's streaming path coalesces text, reasoning and command output d
     await handlers.onEvent({ type: 'completed', success: true, result: 'done' })
   })
   await withInProcessApp(runtime, async (app) => {
-    const store = app.store as unknown as { writeTurn: (turn: TurnRecord) => void }
+    type Write = (turn: TurnRecord) => void
+    const store = app.store as unknown as { writeTurn: Write; writeTurnItems: Write }
     const writeTurn = store.writeTurn.bind(store)
+    const writeTurnItems = store.writeTurnItems.bind(store)
     countWrites = () => {
       writes = 0
       store.writeTurn = (turn) => {
         writes += 1
         writeTurn(turn)
+      }
+      store.writeTurnItems = (turn) => {
+        writes += 1
+        writeTurnItems(turn)
       }
     }
     const threadId = await app.startThread()

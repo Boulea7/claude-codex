@@ -82,7 +82,9 @@ function handlers(events: RuntimeEvent[]): RuntimeHandlers {
   } as RuntimeHandlers
 }
 
-test('http runtime steers a turn only after its own prompt is posted', async () => {
+test('http runtime steers a turn only after its own prompt is posted', {
+  timeout: 10_000,
+}, async () => {
   const bridge = await startBridge()
   const runtime = new HttpAgentRuntime({
     kind: 'agent-http',
